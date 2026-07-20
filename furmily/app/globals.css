@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#FDF8F5] text-gray-800;
+  }
+  h1, h2, h3 {
+    @apply font-bold;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+    margin: 0;
+    padding: 0;
+  }
+  .shadow-lg {
+    box-shadow: none !important;
+  }
+}
