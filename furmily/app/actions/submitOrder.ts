@@ -41,11 +41,11 @@ export async function submitOrder(input: {
     customerId = newCustomer.id;
   }
 
-  // 2. Get product details and validate stock
+  // 2. Get product details (including discount_percent)
   const productIds = input.items.map(item => item.product_id);
   const { data: products, error: productError } = await supabaseAdmin
     .from('products')
-    .select('id, name, category, price, stock')
+    .select('id, name, category, price, stock, discount_percent')
     .in('id', productIds);
   if (productError) throw new Error(productError.message);
 
@@ -58,26 +58,31 @@ export async function submitOrder(input: {
     if (product.stock < item.quantity) {
       throw new Error(`Stok ${product.name} tidak mencukupi. Sisa: ${product.stock}`);
     }
-    const subtotal = product.price * item.quantity;
+
+    // ✅ Calculate effective price with discount
+    const discountPercent = product.discount_percent ?? 0;
+    const effectivePrice = Math.round(product.price * (1 - discountPercent / 100));
+    const subtotal = effectivePrice * item.quantity;
     total += subtotal;
+
     return {
       product_id: item.product_id,
       product_name: product.name,
       variant: product.category,
       quantity: item.quantity,
-      price: product.price,
+      price: effectivePrice,      // ✅ stored discounted price
       subtotal,
     };
   });
 
-  // 3. Create order
+  // 3. Create order with discounted total
   const orderNumber = `ORD-${Date.now()}`;
   const { data: order, error: orderError } = await supabaseAdmin
     .from('orders')
     .insert({
       customer_id: customerId,
       order_number: orderNumber,
-      total_amount: total,
+      total_amount: total,        // ✅ discounted total
       status: 'pending',
       notes: input.notes || '',
     })
@@ -85,7 +90,7 @@ export async function submitOrder(input: {
     .single();
   if (orderError) throw new Error(orderError.message);
 
-  // 4. Insert order items
+  // 4. Insert order items (already have discounted price)
   const itemsToInsert = orderItems.map(item => ({
     ...item,
     order_id: order.id,
@@ -95,7 +100,7 @@ export async function submitOrder(input: {
     .insert(itemsToInsert);
   if (itemsError) throw new Error(itemsError.message);
 
-  // 5. Deduct stock
+  // 5. Deduct stock (same as before)
   for (const item of orderItems) {
     const product = productMap.get(item.product_id);
     if (product) {
@@ -109,7 +114,6 @@ export async function submitOrder(input: {
   revalidatePath('/admin/orders');
   revalidatePath('/admin/dashboard');
 
-  // ✅ return both orderId and orderNumber
   return {
     success: true,
     orderId: order.id,

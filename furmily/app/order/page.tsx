@@ -1,12 +1,15 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { Suspense } from 'react';
 import { useCart } from '@/context/CartContext';
 import { useSearchParams } from 'next/navigation';
 import { FaSearch, FaShoppingCart, FaTrash, FaTimes } from 'react-icons/fa';
 import { submitOrder } from '@/app/actions/submitOrder';
 import { getPublicProducts } from '@/app/actions/frontend';
 import { Product } from '@/app/actions/products';
+import { createDokuPaymentOrder } from '@/app/actions/createDokuPayment';
+
+import { useState, useEffect, useMemo } from 'react';
 
 function addBusinessDays(date: Date, days: number): Date {
   const result = new Date(date);
@@ -21,7 +24,8 @@ function addBusinessDays(date: Date, days: number): Date {
 
 const CATEGORIES = ['All', 'Freeze Dried', 'Food Topper', 'Supplements'];
 
-export default function OrderPage() {
+// --- Inner component that uses useSearchParams ---
+function OrderForm() {
   const { state, clearCart } = useCart();
   const searchParams = useSearchParams();
 
@@ -130,8 +134,11 @@ export default function OrderPage() {
         notes: form.notes,
       });
 
-      // ✅ Redirect to invoice page
-      window.location.href = `/invoice/${result.orderId}`;
+      // Create DOKU payment and redirect
+      const { paymentUrl } = await createDokuPaymentOrder(result.orderId);
+      // Optionally open in new tab: window.open(paymentUrl, '_blank');
+      window.location.href = paymentUrl; // redirect to DOKU
+      // The invoice will be shown after payment via callback
     } catch (err: any) {
       setError(err.message || 'Terjadi kesalahan.');
     } finally {
@@ -306,5 +313,14 @@ export default function OrderPage() {
         </button>
       </form>
     </div>
+  );
+}
+
+// --- Main page component with Suspense boundary ---
+export default function OrderPage() {
+  return (
+    <Suspense fallback={<div className="max-w-6xl mx-auto p-8 text-center">Loading...</div>}>
+      <OrderForm />
+    </Suspense>
   );
 }

@@ -12,9 +12,23 @@ export default function Navbar() {
   const [adminDropdownOpen, setAdminDropdownOpen] = useState(false);
   const { state } = useCart();
 
-  useEffect(() => {
+  // Check admin status from cookie
+  const checkAdminStatus = () => {
     const hasSession = document.cookie.includes('admin_session=true');
     setIsAdmin(hasSession);
+  };
+
+  useEffect(() => {
+    // Initial check
+    checkAdminStatus();
+
+    // Listen for login event (dispatched after admin login)
+    window.addEventListener('adminLogin', checkAdminStatus);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('adminLogin', checkAdminStatus);
+    };
   }, []);
 
   const handleLogout = () => {

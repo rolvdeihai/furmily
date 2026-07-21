@@ -5,16 +5,30 @@ import { useRouter } from 'next/navigation';
 
 export default function AdminLogin() {
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
   const router = useRouter();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In production, use a proper auth system
-    if (password === process.env.NEXT_PUBLIC_ADMIN_PASSWORD) {
-      document.cookie = 'admin_session=true; path=/'; // simple cookie
+    setError('');
+
+    const res = await fetch('/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      // ✅ Set cookie (the API does this, but for safety we also set it client-side)
+      document.cookie = 'admin_session=true; path=/; max-age=86400';
+      
+      // ✅ Dispatch custom event to notify Navbar
+      window.dispatchEvent(new Event('adminLogin'));
+      
       router.push('/admin/dashboard');
     } else {
-      alert('Password salah');
+      setError('Password salah');
     }
   };
 
@@ -29,6 +43,7 @@ export default function AdminLogin() {
           onChange={(e) => setPassword(e.target.value)}
           className="w-full border rounded px-3 py-2"
         />
+        {error && <div className="text-red-600">{error}</div>}
         <button type="submit" className="bg-furmily-primary text-white px-4 py-2 rounded">
           Login
         </button>
