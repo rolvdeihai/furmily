@@ -110,6 +110,13 @@ export default function Navbar() {
                       📦 Orders
                     </Link>
                     <Link
+                        href="/admin/shipping"
+                        className="block px-4 py-2 hover:bg-gray-100 transition text-sm"
+                        onClick={() => setAdminDropdownOpen(false)}
+                    >
+                        🚚 Shipping
+                    </Link>
+                    <Link
                       href="/admin/export"
                       className="block px-4 py-2 hover:bg-gray-100 transition text-sm"
                       onClick={() => setAdminDropdownOpen(false)}
@@ -177,6 +184,7 @@ export default function Navbar() {
                     <Link href="/admin/products" className="block px-3 py-1.5 rounded hover:bg-white/20 transition" onClick={() => { setIsOpen(false); setAdminDropdownOpen(false); }}>🛒 Products</Link>
                     <Link href="/admin/customers" className="block px-3 py-1.5 rounded hover:bg-white/20 transition" onClick={() => { setIsOpen(false); setAdminDropdownOpen(false); }}>👥 Customers</Link>
                     <Link href="/admin/orders" className="block px-3 py-1.5 rounded hover:bg-white/20 transition" onClick={() => { setIsOpen(false); setAdminDropdownOpen(false); }}>📦 Orders</Link>
+                    <Link href="/admin/shipping" className="block px-3 py-1.5 rounded hover:bg-white/20 transition" onClick={() => { setIsOpen(false); setAdminDropdownOpen(false); }}>🚚 Shipping</Link>
                     <Link href="/admin/export" className="block px-3 py-1.5 rounded hover:bg-white/20 transition" onClick={() => { setIsOpen(false); setAdminDropdownOpen(false); }}>📤 Export Data</Link>
                     <button onClick={() => { handleLogout(); setIsOpen(false); setAdminDropdownOpen(false); }} className="block w-full text-left px-3 py-1.5 rounded hover:bg-white/20 transition text-red-300">🚪 Logout</button>
                   </div>

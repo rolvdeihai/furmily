@@ -10,7 +10,7 @@ export async function exportProductsCSV(products: Product[]): Promise<string> {
   if (products.length === 0) return '';
   const headers: (keyof Product)[] = [
     'name', 'category', 'description', 'price', 'stock',
-    'discount_percent', 'image_url', 'badge', 'id', 'created_at', 'updated_at'
+    'discount_percent', 'weight', 'image_url', 'badge', 'id', 'created_at', 'updated_at'
   ];
   const csv = [
     headers.join(','),
@@ -44,6 +44,7 @@ export async function importProductsCSV(formData: FormData) {
       price,
       stock,
       discount_percent,
+      weight,
       image_url,
       badge,
       id,
@@ -57,6 +58,7 @@ export async function importProductsCSV(formData: FormData) {
       price: parseFloat(price),
       stock: parseInt(stock),
       discount_percent: discount_percent ? parseInt(discount_percent) : 0,
+      weight: weight ? parseFloat(weight) : 0,   // ✅
       image_url: image_url || '',
       badge: badge || '',
     };

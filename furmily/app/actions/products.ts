@@ -10,7 +10,8 @@ export interface ProductFormData {
   description?: string;
   price: number;
   stock: number;
-  discount_percent?: number;   // new
+  discount_percent?: number;
+  weight?: number;          // ✅ tambahkan
   image_url?: string;
   badge?: string;
 }
@@ -62,7 +63,7 @@ export async function createProduct(formData: ProductFormData) {
   const id = randomUUID();
   const { data, error } = await supabaseAdmin
     .from('products')
-    .insert([{ ...formData, id }])
+    .insert([{ ...formData, id, weight: formData.weight ?? 0 }])
     .select()
     .single();
   if (error) throw new Error(error.message);

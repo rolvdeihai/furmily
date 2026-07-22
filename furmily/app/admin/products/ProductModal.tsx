@@ -184,6 +184,18 @@ export default function ProductModal({ isOpen, onClose, onSuccess, product }: Pr
                   className="w-full border rounded-lg px-3 py-2"
               />
             </div>
+            <div>
+              <label className="block text-sm font-semibold">Berat (kg)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.weight ?? 0}
+                onChange={(e) => setForm({ ...form, weight: parseFloat(e.target.value) || 0 })}
+                className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-furmily-primary outline-none"
+              />
+              <p className="text-xs text-gray-500 mt-1">Berat produk untuk perhitungan ongkir</p>
+            </div>
           </div>
 
           {/* Image Upload */}
