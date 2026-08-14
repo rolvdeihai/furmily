@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { getOrders, updateOrderStatus, createOrder, updateOrder, updateFullOrder, deleteOrder } from '@/app/actions/orders';
 import { getCustomers } from '@/app/actions/customers';
 import { exportOrdersToCSV } from '@/app/actions/export';
@@ -10,13 +11,21 @@ import {
   FaEye, FaTimes, FaSearch, FaDownload, FaUpload, FaSpinner,
   FaPlus, FaEdit, FaTrash, FaChevronLeft, FaChevronRight
 } from 'react-icons/fa';
-import Tesseract from 'tesseract.js';
-import * as pdfjsLib from 'pdfjs-dist';
-import mammoth from 'mammoth';
 import React from 'react';
 
-// Set PDF.js worker (optional)
-// pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// ==================== DYNAMIC IMPORTS (ssr: false) ====================
+const ImageTextExtractor = dynamic(
+  () => import('@/components/ImageTextExtractor'),
+  { ssr: false }
+);
+const PDFTextExtractor = dynamic(
+  () => import('@/components/PDFTextExtractor'),
+  { ssr: false }
+);
+const DOCXTextExtractor = dynamic(
+  () => import('@/components/DOCXTextExtractor'),
+  { ssr: false }
+);
 
 const STATUS_OPTIONS = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
 const STATUS_COLORS: Record<string, string> = {
@@ -310,6 +319,12 @@ export default function AdminOrders() {
   const [savingBulk, setSavingBulk] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Extractor states
+  const [showImageExtractor, setShowImageExtractor] = useState(false);
+  const [showPDFExtractor, setShowPDFExtractor] = useState(false);
+  const [showDOCXExtractor, setShowDOCXExtractor] = useState(false);
+  const [currentFile, setCurrentFile] = useState<File | null>(null);
+
   // ---- Existing functions (fetch, CRUD) ----
   const fetchOrders = async (status?: string) => {
     setLoading(true);
@@ -496,47 +511,55 @@ export default function AdminOrders() {
     }
   };
 
-  // ---- AI Import Functions ----
-  const extractTextFromFile = async (file: File): Promise<string> => {
-    const buffer = await file.arrayBuffer();
-    const mimeType = file.type;
-    const extension = file.name.split('.').pop()?.toLowerCase();
-
-    if (mimeType.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'].includes(extension || '')) {
-      const { data: { text } } = await Tesseract.recognize(
-        Buffer.from(buffer),
-        'eng+ind',
-        { logger: m => console.log(m) }
-      );
-      return text;
+  // ---- AI Import: File Processing (client‑side) ----
+  const processExtractedText = async (text: string) => {
+    if (!text.trim()) {
+      alert('Tidak ada teks yang dapat diekstrak.');
+      setProcessingFile(false);
+      return;
     }
-
-    if (mimeType === 'application/pdf' || extension === 'pdf') {
-      const loadingTask = pdfjsLib.getDocument({ data: buffer });
-      const pdf = await loadingTask.promise;
-      let fullText = '';
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        fullText += textContent.items.map((item: any) => item.str).join(' ') + '\n';
+    try {
+      const parsedOrders = await parseOrdersFromText(text);
+      if (parsedOrders.length === 0) {
+        alert('Tidak ada pesanan yang ditemukan.');
+        setProcessingFile(false);
+        return;
       }
-      return fullText;
+      const unsaved: UnsavedOrder[] = parsedOrders.map((order: any, idx: number) => ({
+        id: `temp-${Date.now()}-${idx}`,
+        order_number: order.order_number || `ORD-${Date.now()}-${idx}`,
+        customer_name: order.customer_name || '',
+        customer_phone: order.customer_phone || '',
+        customer_email: order.customer_email || '',
+        customer_address: order.customer_address || '',
+        total_amount: order.total_amount || 0,
+        status: order.status || 'pending',
+        notes: order.notes || '',
+        payment_method: order.payment_method || '',
+        transaction_date: order.transaction_date || '',
+        product_name: order.product_name || 'Import Item',
+        quantity: order.quantity || 1,
+        price: order.price || 0,
+      }));
+      setUnsavedOrders(unsaved);
+      setActiveOrderIndex(0);
+      setShowBulkModal(true);
+      setImportInfo(`✅ ${unsaved.length} pesanan berhasil diekstrak.`);
+      setTimeout(() => setImportInfo(null), 5000);
+    } catch (err: any) {
+      alert('Gagal memproses file: ' + err.message);
+    } finally {
+      setProcessingFile(false);
     }
-
-    if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || extension === 'docx') {
-      const result = await mammoth.extractRawText({ buffer: Buffer.from(buffer) });
-      return result.value;
-    }
-
-    return new TextDecoder().decode(buffer);
   };
 
   const handleFileSelection = async (file: File, mode: 'jetnote' | 'ai') => {
     setProcessingFile(true);
     setImportInfo(null);
-    try {
-      if (mode === 'jetnote') {
-        // Gunakan parser Jetnote hardcoded (CSV hanya)
+
+    if (mode === 'jetnote') {
+      // Jetnote: langsung proses CSV
+      try {
         const formData = new FormData();
         formData.append('file', file);
         const result = await importJetnoteCSV(formData);
@@ -546,40 +569,32 @@ export default function AdminOrders() {
           alert(`✅ Berhasil mengimpor ${result.count} pesanan.`);
         }
         fetchOrders(statusFilter !== 'all' ? statusFilter : undefined);
-      } else {
-        // AI Universal
-        const rawText = await extractTextFromFile(file);
-        if (!rawText.trim()) throw new Error('Tidak ada teks yang dapat diekstrak.');
-        const parsedOrders = await parseOrdersFromText(rawText);
-        if (parsedOrders.length === 0) throw new Error('Tidak ada pesanan yang ditemukan.');
-        // Convert ke UnsavedOrder
-        const unsaved: UnsavedOrder[] = parsedOrders.map((order: any, idx: number) => ({
-          id: `temp-${Date.now()}-${idx}`,
-          order_number: order.order_number || `ORD-${Date.now()}-${idx}`,
-          customer_name: order.customer_name || '',
-          customer_phone: order.customer_phone || '',
-          customer_email: order.customer_email || '',
-          customer_address: order.customer_address || '',
-          total_amount: order.total_amount || 0,
-          status: order.status || 'pending',
-          notes: order.notes || '',
-          payment_method: order.payment_method || '',
-          transaction_date: order.transaction_date || '',
-          product_name: order.product_name || 'Import Item',
-          quantity: order.quantity || 1,
-          price: order.price || 0,
-        }));
-        setUnsavedOrders(unsaved);
-        setActiveOrderIndex(0);
-        setShowBulkModal(true);
-        setImportInfo(`✅ ${unsaved.length} pesanan berhasil diekstrak.`);
-        setTimeout(() => setImportInfo(null), 5000);
+      } catch (err: any) {
+        alert('Gagal memproses file: ' + err.message);
+      } finally {
+        setProcessingFile(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
       }
-    } catch (error: any) {
-      alert('Gagal memproses file: ' + error.message);
-    } finally {
-      setProcessingFile(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    // AI mode: ekstrak teks dari file
+    const mimeType = file.type;
+    const extension = file.name.split('.').pop()?.toLowerCase();
+
+    if (mimeType.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'].includes(extension || '')) {
+      setCurrentFile(file);
+      setShowImageExtractor(true);
+    } else if (mimeType === 'application/pdf' || extension === 'pdf') {
+      setCurrentFile(file);
+      setShowPDFExtractor(true);
+    } else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || extension === 'docx') {
+      setCurrentFile(file);
+      setShowDOCXExtractor(true);
+    } else {
+      // Teks biasa
+      const text = await file.text();
+      await processExtractedText(text);
     }
   };
 
@@ -1082,7 +1097,6 @@ export default function AdminOrders() {
       )}
 
       {/* Bulk Order Modal */}
-      {/* Bulk Order Modal */}
       {showBulkModal && (
         <BulkOrderModal
           unsavedOrders={unsavedOrders}
@@ -1095,6 +1109,57 @@ export default function AdminOrders() {
         />
       )}
 
+      {/* Extractors */}
+      {showImageExtractor && currentFile && (
+        <ImageTextExtractor
+          file={currentFile}
+          onTextExtracted={(text) => {
+            setShowImageExtractor(false);
+            setCurrentFile(null);
+            processExtractedText(text);
+          }}
+          onError={(err) => {
+            setShowImageExtractor(false);
+            setCurrentFile(null);
+            alert('Gagal mengekstrak gambar: ' + err);
+            setProcessingFile(false);
+          }}
+        />
+      )}
+
+      {showPDFExtractor && currentFile && (
+        <PDFTextExtractor
+          file={currentFile}
+          onTextExtracted={(text) => {
+            setShowPDFExtractor(false);
+            setCurrentFile(null);
+            processExtractedText(text);
+          }}
+          onError={(err) => {
+            setShowPDFExtractor(false);
+            setCurrentFile(null);
+            alert('Gagal mengekstrak PDF: ' + err);
+            setProcessingFile(false);
+          }}
+        />
+      )}
+
+      {showDOCXExtractor && currentFile && (
+        <DOCXTextExtractor
+          file={currentFile}
+          onTextExtracted={(text) => {
+            setShowDOCXExtractor(false);
+            setCurrentFile(null);
+            processExtractedText(text);
+          }}
+          onError={(err) => {
+            setShowDOCXExtractor(false);
+            setCurrentFile(null);
+            alert('Gagal mengekstrak DOCX: ' + err);
+            setProcessingFile(false);
+          }}
+        />
+      )}
     </div>
   );
 }

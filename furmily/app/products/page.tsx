@@ -1,5 +1,4 @@
 // app/products/page.tsx
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -15,8 +14,6 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-
-  // ✅ REMOVE the invalid line: const discountedPrice = ...
 
   useEffect(() => {
     const fetchData = async () => {
@@ -67,7 +64,8 @@ export default function ProductsPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6">
+      {/* Hero Header */}
       <div className="bg-gradient-to-r from-furmily-primary to-[#0A6B5C] text-white rounded-2xl p-6 md:p-10 mb-8">
         <h1 className="text-3xl md:text-4xl font-bold">🛒 Semua Produk</h1>
         <p className="opacity-90 mt-2">
@@ -78,15 +76,16 @@ export default function ProductsPage() {
         </div>
       </div>
 
+      {/* Search & Filter */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-        <div className="relative flex-1 max-w-sm">
+        <div className="relative flex-1 min-w-[160px] max-w-sm">
           <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             placeholder="Cari produk..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full border rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-furmily-primary focus:border-transparent outline-none"
+            className="w-full border rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-furmily-primary focus:border-transparent outline-none text-sm"
           />
         </div>
         <div className="flex flex-wrap gap-2">
@@ -94,7 +93,7 @@ export default function ProductsPage() {
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium transition border ${
+              className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition border ${
                 selectedCategory === cat
                   ? 'bg-furmily-primary text-white border-furmily-primary'
                   : 'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200'
@@ -114,10 +113,11 @@ export default function ProductsPage() {
         </div>
       </div>
 
+      {/* Product Grid – 2 columns on mobile, 2 on tablet, 3 on medium, 4 on large */}
       {filteredProducts.length === 0 ? (
         <p className="text-center text-gray-500 py-12">Tidak ada produk yang cocok.</p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
           {filteredProducts.map((product) => (
             <ProductCard key={product.id} product={product} />
           ))}

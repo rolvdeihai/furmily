@@ -3,7 +3,7 @@
 import { Suspense } from 'react';
 import { useCart } from '@/context/CartContext';
 import { useSearchParams } from 'next/navigation';
-import { FaSearch, FaShoppingCart, FaTrash, FaTimes, FaTruck } from 'react-icons/fa';
+import { FaSearch, FaShoppingCart, FaTrash, FaTimes, FaTruck, FaChevronDown } from 'react-icons/fa';
 import { submitOrder } from '@/app/actions/submitOrder';
 import { getPublicProducts } from '@/app/actions/frontend';
 import { Product } from '@/app/actions/products';
@@ -11,6 +11,9 @@ import { createDokuPaymentOrder } from '@/app/actions/createDokuPayment';
 import { getShippingData } from '@/app/actions/shipping';
 import { useState, useEffect, useMemo } from 'react';
 import { cities, City } from '@/data/cities';
+import Link from 'next/link';
+
+export const dynamic = 'force-dynamic';
 
 // --- Helpers ---
 function addBusinessDays(date: Date, days: number): Date {
@@ -75,7 +78,7 @@ function OrderForm() {
     customerPhone: '',
     customerEmail: '',
     customerAddress: '',
-    customerCity: '',      // ✅ pilihan kota
+    customerCity: '',
     notes: '',
     items: {} as Record<string, number>,
   });
@@ -97,6 +100,10 @@ function OrderForm() {
   const [selectedCity, setSelectedCity] = useState<City | null>(null);
   const [citySearch, setCitySearch] = useState('');
   const [geocoding, setGeocoding] = useState(false);
+
+  // --- Pagination / Show More state ---
+  const [visibleCount, setVisibleCount] = useState(6);
+  const ITEMS_PER_PAGE = 6;
 
   // Filter cities for autocomplete
   const filteredCities = useMemo(() => {
@@ -169,7 +176,6 @@ function OrderForm() {
   // --- Geocode customer address (optional fallback) ---
   const handleAddressBlur = async () => {
     if (!form.customerAddress) return;
-    // Jika sudah ada kota yang dipilih, jangan override
     if (selectedCity) return;
     setGeocoding(true);
     const coords = await geocodeAddress(form.customerAddress);
@@ -224,6 +230,17 @@ function OrderForm() {
     }
     return filtered;
   }, [searchQuery, selectedCategory, products]);
+
+  // --- Visible products (pagination) ---
+  const visibleProducts = useMemo(() => {
+    return filteredProducts.slice(0, visibleCount);
+  }, [filteredProducts, visibleCount]);
+
+  const hasMore = filteredProducts.length > visibleCount;
+
+  const handleShowMore = () => {
+    setVisibleCount(prev => prev + ITEMS_PER_PAGE);
+  };
 
   const handleQuantityChange = (productId: string, quantity: number) => {
     setForm(prev => ({
@@ -522,37 +539,116 @@ function OrderForm() {
             )}
           </div>
 
+          {/* Product Grid – 2 columns on mobile, 3 on larger screens */}
           {filteredProducts.length === 0 ? (
             <p className="text-gray-500 text-center py-8">Tidak ada produk yang ditemukan.</p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredProducts.map((product: Product) => (
-                <div
-                  key={product.id}
-                  className="border rounded-xl p-4 flex flex-col hover:shadow-md transition bg-gray-50/50"
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-semibold text-furmily-primary">{product.name}</p>
-                      <p className="text-xs text-gray-500">{product.category}</p>
-                      <p className="text-sm font-bold text-furmily-primary mt-1">Rp {product.price.toLocaleString()}</p>
-                      {product.weight && (
-                        <p className="text-xs text-gray-400">{product.weight} kg</p>
-                      )}
+            <div>
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                {visibleProducts.map((product: Product) => (
+                  <div
+                    key={product.id}
+                    className="border rounded-xl p-3 sm:p-4 flex flex-col hover:shadow-md transition bg-gray-50/50"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-semibold text-furmily-primary text-sm sm:text-base">{product.name}</p>
+                        <p className="text-[10px] sm:text-xs text-gray-500">{product.category}</p>
+                        <p className="text-sm font-bold text-furmily-primary mt-1">Rp {product.price.toLocaleString()}</p>
+                        {product.weight && (
+                          <p className="text-[10px] sm:text-xs text-gray-400">{product.weight} kg</p>
+                        )}
+                      </div>
+                      <input
+                        type="number"
+                        min="0"
+                        value={form.items[product.id] || 0}
+                        onChange={(e) =>
+                          handleQuantityChange(product.id, parseInt(e.target.value) || 0)
+                        }
+                        className="w-14 sm:w-16 border rounded-lg px-1 py-1 text-center focus:ring-2 focus:ring-furmily-primary focus:border-transparent outline-none text-sm"
+                      />
                     </div>
-                    <input
-                      type="number"
-                      min="0"
-                      value={form.items[product.id] || 0}
-                      onChange={(e) =>
-                        handleQuantityChange(product.id, parseInt(e.target.value) || 0)
-                      }
-                      className="w-16 border rounded-lg px-2 py-1 text-center focus:ring-2 focus:ring-furmily-primary focus:border-transparent outline-none"
-                    />
+                    <p className="text-[10px] sm:text-xs text-gray-400 mt-1 line-clamp-2">{product.description}</p>
                   </div>
-                  <p className="text-xs text-gray-400 mt-2 line-clamp-2">{product.description}</p>
+                ))}
+              </div>
+
+              {/* Show More Button */}
+              {hasMore && (
+                <div className="text-center mt-6">
+                  <button
+                    type="button"
+                    onClick={handleShowMore}
+                    className="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-2.5 rounded-full transition text-sm font-medium"
+                  >
+                    Tampilkan Lebih Banyak <FaChevronDown size={14} />
+                  </button>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Menampilkan {visibleCount} dari {filteredProducts.length} produk
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ==================== RINGKASAN PESANAN ==================== */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+          <h2 className="text-xl font-bold text-furmily-primary mb-4 flex items-center gap-2">
+            🧾 Ringkasan Pesanan
+          </h2>
+
+          {selectedItems.length === 0 ? (
+            <p className="text-gray-500 text-sm">Belum ada produk yang dipilih.</p>
+          ) : (
+            <div className="space-y-3">
+              {/* Daftar item */}
+              {selectedItems.map((item, idx) => (
+                <div key={idx} className="flex justify-between items-center border-b border-gray-100 pb-2 last:border-0">
+                  <div>
+                    <p className="font-medium text-gray-800 text-sm">{item.product_name}</p>
+                    <p className="text-xs text-gray-500">
+                      {item.quantity} x Rp {item.price.toLocaleString()}
+                    </p>
+                  </div>
+                  <span className="font-semibold text-furmily-primary text-sm">
+                    Rp {item.subtotal.toLocaleString()}
+                  </span>
                 </div>
               ))}
+
+              {/* Ajakan tambah produk */}
+              <div className="text-center pt-1">
+                <Link
+                  href="/products"
+                  className="text-sm text-furmily-primary hover:underline inline-flex items-center gap-1 font-medium"
+                >
+                  Yuk, tambah lagi! <span className="text-base">→</span>
+                </Link>
+              </div>
+
+              {/* Subtotal */}
+              <div className="flex justify-between pt-2 border-t border-gray-200">
+                <span className="text-gray-600">Subtotal</span>
+                <span className="font-semibold">Rp {subtotal.toLocaleString()}</span>
+              </div>
+
+              {/* Ongkir */}
+              {shippingCost > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Ongkos Kirim</span>
+                  <span className="font-semibold">Rp {shippingCost.toLocaleString()}</span>
+                </div>
+              )}
+
+              {/* Total */}
+              <div className="flex justify-between pt-2 border-t-2 border-furmily-primary">
+                <span className="font-bold text-furmily-primary text-lg">Total</span>
+                <span className="font-bold text-furmily-primary text-lg">
+                  Rp {totalPrice.toLocaleString()}
+                </span>
+              </div>
             </div>
           )}
         </div>

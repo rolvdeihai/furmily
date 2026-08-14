@@ -1,3 +1,5 @@
+// app/actions/dashboard
+
 'use server';
 
 import { supabaseAdmin } from '@/lib/supabaseAdmin';

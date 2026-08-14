@@ -1,7 +1,7 @@
-// app/admin/products/page.tsx
 'use client';
 
 import { useEffect, useState, useMemo, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import {
   getProducts,
   deleteProduct,
@@ -23,17 +23,27 @@ import {
   FaChevronLeft,
   FaChevronRight,
 } from 'react-icons/fa';
-import Tesseract from 'tesseract.js';
-import * as pdfjsLib from 'pdfjs-dist';
-import mammoth from 'mammoth';
 
-// Get unique categories from products (client-side)
+// ==================== DYNAMIC IMPORTS (ssr: false) ====================
+const ImageTextExtractor = dynamic(
+  () => import('@/components/ImageTextExtractor'),
+  { ssr: false }
+);
+const PDFTextExtractor = dynamic(
+  () => import('@/components/PDFTextExtractor'),
+  { ssr: false }
+);
+const DOCXTextExtractor = dynamic(
+  () => import('@/components/DOCXTextExtractor'),
+  { ssr: false }
+);
+
+// ==================== HELPERS ====================
 const getCategories = (products: Product[]) => {
   const cats = new Set(products.map(p => p.category));
   return ['All', ...Array.from(cats)];
 };
 
-// Temporary product type for bulk import
 type UnsavedProduct = {
   id: string;
   name: string;
@@ -42,13 +52,13 @@ type UnsavedProduct = {
   price: number;
   stock: number;
   discount_percent: number;
-  weight: number;      // ✅
+  weight: number;
   image_url: string;
   badge: string;
 };
 
 export default function AdminProducts() {
-  // --- Existing state ---
+  // ==================== STATE ====================
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -63,7 +73,7 @@ export default function AdminProducts() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- Bulk import states ---
+  // Bulk import states
   const [unsavedProducts, setUnsavedProducts] = useState<UnsavedProduct[]>([]);
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [activeProductIndex, setActiveProductIndex] = useState(0);
@@ -71,7 +81,14 @@ export default function AdminProducts() {
   const [savingBulk, setSavingBulk] = useState(false);
   const [importInfo, setImportInfo] = useState<string | null>(null);
 
-  // --- Existing fetch & handlers ---
+  // Extractor states
+  const [showImageExtractor, setShowImageExtractor] = useState(false);
+  const [showPDFExtractor, setShowPDFExtractor] = useState(false);
+  const [showDOCXExtractor, setShowDOCXExtractor] = useState(false);
+  const [currentFile, setCurrentFile] = useState<File | null>(null);
+  const [extractedText, setExtractedText] = useState<string | null>(null);
+
+  // ==================== FETCH ====================
   const fetchProducts = async (filters?: {
     search?: string;
     category?: string;
@@ -93,6 +110,7 @@ export default function AdminProducts() {
     fetchProducts();
   }, []);
 
+  // ==================== FILTERS ====================
   const filteredProducts = useMemo(() => {
     let result = products;
     if (searchQuery.trim()) {
@@ -119,6 +137,12 @@ export default function AdminProducts() {
 
   const categories = useMemo(() => getCategories(products), [products]);
 
+  // Daftar kategori unik (tanpa "All") untuk datalist
+  const categoryOptions = useMemo(() => {
+    return categories.filter(c => c !== 'All');
+  }, [categories]);
+
+  // ==================== CRUD ====================
   const handleDelete = async (id: string) => {
     if (!confirm('Yakin ingin menghapus produk ini?')) return;
     try {
@@ -139,6 +163,7 @@ export default function AdminProducts() {
     setModalOpen(true);
   };
 
+  // ==================== EXPORT ====================
   const handleExport = async () => {
     if (filteredProducts.length === 0) {
       alert('Tidak ada data untuk diekspor.');
@@ -188,51 +213,20 @@ export default function AdminProducts() {
     }
   };
 
-  // --- AI Import Functions (copied and adapted from orders page) ---
-  const extractTextFromFile = async (file: File): Promise<string> => {
-    const buffer = await file.arrayBuffer();
-    const mimeType = file.type;
-    const extension = file.name.split('.').pop()?.toLowerCase();
-
-    if (mimeType.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'].includes(extension || '')) {
-      const { data: { text } } = await Tesseract.recognize(
-        Buffer.from(buffer),
-        'eng+ind',
-        { logger: m => console.log(m) }
-      );
-      return text;
+  // ==================== AI IMPORT (FILE EXTRACTION) ====================
+  const processExtractedText = async (text: string) => {
+    if (!text.trim()) {
+      alert('Tidak ada teks yang dapat diekstrak.');
+      setProcessingFile(false);
+      return;
     }
-
-    if (mimeType === 'application/pdf' || extension === 'pdf') {
-      const loadingTask = pdfjsLib.getDocument({ data: buffer });
-      const pdf = await loadingTask.promise;
-      let fullText = '';
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        fullText += textContent.items.map((item: any) => item.str).join(' ') + '\n';
-      }
-      return fullText;
-    }
-
-    if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || extension === 'docx') {
-      const result = await mammoth.extractRawText({ buffer: Buffer.from(buffer) });
-      return result.value;
-    }
-
-    return new TextDecoder().decode(buffer);
-  };
-
-  const handleFileSelection = async (file: File) => {
-    setProcessingFile(true);
-    setImportInfo(null);
     try {
-      const rawText = await extractTextFromFile(file);
-      if (!rawText.trim()) throw new Error('Tidak ada teks yang dapat diekstrak dari file.');
-
-      const parsedProducts = await parseProductsFromText(rawText);
-      if (parsedProducts.length === 0) throw new Error('Tidak ada produk yang ditemukan dalam file.');
-
+      const parsedProducts = await parseProductsFromText(text);
+      if (parsedProducts.length === 0) {
+        alert('Tidak ada produk yang ditemukan dalam file.');
+        setProcessingFile(false);
+        return;
+      }
       const unsaved: UnsavedProduct[] = parsedProducts.map((p: any, idx: number) => ({
         id: `temp-${Date.now()}-${idx}`,
         name: p.name || '',
@@ -241,24 +235,45 @@ export default function AdminProducts() {
         price: p.price || 0,
         stock: p.stock || 0,
         discount_percent: p.discount_percent || 0,
-        weight: p.weight ?? 0,   // ✅ tambahkan
+        weight: p.weight || 0,
         image_url: p.image_url || '',
         badge: p.badge || '',
       }));
-
       setUnsavedProducts(unsaved);
       setActiveProductIndex(0);
       setShowBulkModal(true);
       setImportInfo(`✅ ${unsaved.length} produk berhasil diekstrak.`);
       setTimeout(() => setImportInfo(null), 5000);
-    } catch (error: any) {
-      alert('Gagal memproses file: ' + error.message);
+    } catch (err: any) {
+      alert('Gagal memproses file: ' + err.message);
     } finally {
       setProcessingFile(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
+  const handleFileSelection = async (file: File) => {
+    setProcessingFile(true);
+    setImportInfo(null);
+
+    const mimeType = file.type;
+    const extension = file.name.split('.').pop()?.toLowerCase();
+
+    if (mimeType.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'].includes(extension || '')) {
+      setCurrentFile(file);
+      setShowImageExtractor(true);
+    } else if (mimeType === 'application/pdf' || extension === 'pdf') {
+      setCurrentFile(file);
+      setShowPDFExtractor(true);
+    } else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || extension === 'docx') {
+      setCurrentFile(file);
+      setShowDOCXExtractor(true);
+    } else {
+      const text = await file.text();
+      await processExtractedText(text);
+    }
+  };
+
+  // ==================== BULK SAVE ====================
   const handleBulkSave = async () => {
     setSavingBulk(true);
     try {
@@ -283,7 +298,7 @@ export default function AdminProducts() {
     }
   };
 
-  // ---- Bulk Product Modal Component ----
+  // ==================== BULK PRODUCT MODAL (with combobox) ====================
   const BulkProductModal = () => {
     if (unsavedProducts.length === 0) return null;
     const current = unsavedProducts[activeProductIndex];
@@ -304,7 +319,7 @@ export default function AdminProducts() {
         price: 0,
         stock: 0,
         discount_percent: 0,
-        weight: 0,   // ✅
+        weight: 0,
         image_url: '',
         badge: '',
       };
@@ -354,7 +369,7 @@ export default function AdminProducts() {
             </button>
           </div>
 
-          {/* Content (scrollable) */}
+          {/* Content */}
           <div className="flex-1 overflow-y-auto p-6">
             <div className="space-y-4">
               <div>
@@ -369,16 +384,20 @@ export default function AdminProducts() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Kategori</label>
-                <select
+                {/* ---- COMBOBOX CATEGORY ---- */}
+                <input
+                  type="text"
+                  list="category-list"
                   value={current.category}
                   onChange={(e) => updateCurrent({ category: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                >
-                  <option value="">Pilih kategori</option>
-                  <option value="Freeze Dried">Freeze Dried</option>
-                  <option value="Food Topper">Food Topper</option>
-                  <option value="Supplements">Supplements</option>
-                </select>
+                  placeholder="Ketik kategori atau pilih dari daftar"
+                />
+                <datalist id="category-list">
+                  {categoryOptions.map((cat) => (
+                    <option key={cat} value={cat} />
+                  ))}
+                </datalist>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Deskripsi</label>
@@ -423,13 +442,12 @@ export default function AdminProducts() {
                 <label className="block text-sm font-medium text-gray-700">Berat (kg)</label>
                 <input
                   type="number"
-                  min="0"
                   step="0.01"
-                  value={current.weight ?? 0}
+                  min="0"
+                  value={current.weight || 0}
                   onChange={(e) => updateCurrent({ weight: parseFloat(e.target.value) || 0 })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
-                <p className="text-xs text-gray-400 mt-1">Untuk perhitungan ongkir</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Badge</label>
@@ -444,7 +462,7 @@ export default function AdminProducts() {
             </div>
           </div>
 
-          {/* Footer Actions (sticky) */}
+          {/* Footer */}
           <div className="border-t border-gray-100 p-4 bg-gray-50 flex flex-wrap justify-between items-center gap-3">
             <button
               onClick={removeCurrent}
@@ -485,10 +503,10 @@ export default function AdminProducts() {
     );
   };
 
-  // ---- Main Render ----
+  // ==================== RENDER ====================
   return (
     <div className="max-w-7xl mx-auto">
-      {/* Hero Header */}
+      {/* Hero */}
       <div className="bg-gradient-to-r from-furmily-primary to-[#0A6B5C] text-white rounded-2xl p-6 md:p-10 mb-8">
         <h1 className="text-3xl md:text-4xl font-bold">🛒 Manajemen Produk</h1>
         <p className="opacity-90 mt-2">Kelola semua produk, stok, harga, dan diskon.</p>
@@ -502,10 +520,9 @@ export default function AdminProducts() {
         </div>
       </div>
 
-      {/* Filters & Actions */}
+      {/* Filters */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6">
         <div className="flex flex-wrap items-center gap-4">
-          {/* Search */}
           <div className="relative flex-1 min-w-[180px]">
             <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             <input
@@ -517,7 +534,6 @@ export default function AdminProducts() {
             />
           </div>
 
-          {/* Category Filter */}
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
@@ -528,7 +544,6 @@ export default function AdminProducts() {
             ))}
           </select>
 
-          {/* Price Range */}
           <div className="flex items-center gap-2">
             <input
               type="number"
@@ -547,7 +562,6 @@ export default function AdminProducts() {
             />
           </div>
 
-          {/* Action Buttons */}
           <div className="flex gap-2">
             <button
               onClick={() => openModal()}
@@ -569,7 +583,10 @@ export default function AdminProducts() {
               ref={fileInputRef}
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) handleFileSelection(file);
+                if (file) {
+                  setImportFile(file);
+                  handleFileSelection(file);
+                }
               }}
               className="hidden"
               id="import-product-file"
@@ -617,7 +634,7 @@ export default function AdminProducts() {
                 <th className="p-3 text-left text-sm font-semibold">Diskon</th>
                 <th className="p-3 text-left text-sm font-semibold">Harga Diskon</th>
                 <th className="p-3 text-left text-sm font-semibold">Stok</th>
-                <th className="p-3 text-left text-sm font-semibold">Berat (kg)</th>  {/* ✅ */}
+                <th className="p-3 text-left text-sm font-semibold">Berat (kg)</th>
                 <th className="p-3 text-left text-sm font-semibold">Badge</th>
                 <th className="p-3 text-left text-sm font-semibold">Aksi</th>
               </tr>
@@ -637,7 +654,7 @@ export default function AdminProducts() {
                       {p.discount_percent ? `Rp ${discountedPrice.toLocaleString()}` : '-'}
                     </td>
                     <td className="p-3">{p.stock}</td>
-                    <td className="p-3">{p.weight ?? 0}</td>  {/* ✅ */}
+                    <td className="p-3">{p.weight ?? 0}</td>
                     <td className="p-3">{p.badge || '-'}</td>
                     <td className="p-3">
                       <div className="flex items-center gap-2">
@@ -678,10 +695,64 @@ export default function AdminProducts() {
           });
         }}
         product={editingProduct}
+        // Tambahkan prop categoryOptions agar ProductModal juga pakai combobox
+        categoryOptions={categoryOptions}
       />
 
       {/* Bulk Product Modal */}
       {showBulkModal && <BulkProductModal />}
+
+      {/* Extractors */}
+      {showImageExtractor && currentFile && (
+        <ImageTextExtractor
+          file={currentFile}
+          onTextExtracted={(text) => {
+            setShowImageExtractor(false);
+            setCurrentFile(null);
+            processExtractedText(text);
+          }}
+          onError={(err) => {
+            setShowImageExtractor(false);
+            setCurrentFile(null);
+            alert('Gagal mengekstrak gambar: ' + err);
+            setProcessingFile(false);
+          }}
+        />
+      )}
+
+      {showPDFExtractor && currentFile && (
+        <PDFTextExtractor
+          file={currentFile}
+          onTextExtracted={(text) => {
+            setShowPDFExtractor(false);
+            setCurrentFile(null);
+            processExtractedText(text);
+          }}
+          onError={(err) => {
+            setShowPDFExtractor(false);
+            setCurrentFile(null);
+            alert('Gagal mengekstrak PDF: ' + err);
+            setProcessingFile(false);
+          }}
+        />
+      )}
+
+      {showDOCXExtractor && currentFile && (
+        <DOCXTextExtractor
+          file={currentFile}
+          onTextExtracted={(text) => {
+            setShowDOCXExtractor(false);
+            setCurrentFile(null);
+            processExtractedText(text);
+          }}
+          onError={(err) => {
+            setShowDOCXExtractor(false);
+            setCurrentFile(null);
+            alert('Gagal mengekstrak DOCX: ' + err);
+            setProcessingFile(false);
+          }}
+        />
+      )}
     </div>
   );
 }

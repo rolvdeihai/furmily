@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { FaBars, FaTimes, FaShoppingCart, FaChevronDown } from 'react-icons/fa';
 import { useCart } from '@/context/CartContext';
+import Image from 'next/image';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -19,13 +20,8 @@ export default function Navbar() {
   };
 
   useEffect(() => {
-    // Initial check
     checkAdminStatus();
-
-    // Listen for login event (dispatched after admin login)
     window.addEventListener('adminLogin', checkAdminStatus);
-
-    // Cleanup
     return () => {
       window.removeEventListener('adminLogin', checkAdminStatus);
     };
@@ -44,12 +40,21 @@ export default function Navbar() {
     <nav className="bg-furmily-primary text-white shadow-lg sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16 md:h-20">
-          {/* Logo */}
-          <Link href="/" className="text-2xl font-bold tracking-wide hover:text-furmily-cream transition">
-            🐾 Furmily
+          {/* Logo - image inside a circle */}
+          <Link href="/" className="flex-shrink-0 flex items-center group">
+            <div className="w-16 h-16 md:w-20 md:h-20 flex items-center justify-center">
+              <Image
+                src="/furmily-logo.png"
+                alt="Furmily Logo"
+                width={72}
+                height={72}
+                className="w-14 h-14 md:w-[72px] md:h-[72px] object-contain transition-transform duration-200 group-hover:scale-105"
+                priority
+              />
+            </div>
           </Link>
 
-          {/* Desktop Menu */}
+          {/* Desktop Menu - hidden on mobile */}
           <ul className="hidden md:flex items-center space-x-8">
             <li><Link href="/" className="hover:text-furmily-cream transition text-sm font-medium">Home</Link></li>
             <li><Link href="/products" className="hover:text-furmily-cream transition text-sm font-medium">Products</Link></li>
@@ -58,7 +63,7 @@ export default function Navbar() {
             <li><Link href="/wholesale" className="hover:text-furmily-cream transition text-sm font-medium">Wholesale</Link></li>
             <li><Link href="/contact" className="hover:text-furmily-cream transition text-sm font-medium">Contact</Link></li>
 
-            {/* Cart */}
+            {/* Cart - desktop */}
             <li>
               <Link href="/cart" className="relative hover:text-furmily-cream transition">
                 <FaShoppingCart size={22} />
@@ -70,8 +75,8 @@ export default function Navbar() {
               </Link>
             </li>
 
-            {/* Admin Dropdown */}
-            {isAdmin ? (
+            {/* Admin Dropdown - desktop (hanya jika login) */}
+            {isAdmin && (
               <li className="relative">
                 <button
                   onClick={() => setAdminDropdownOpen(!adminDropdownOpen)}
@@ -110,11 +115,11 @@ export default function Navbar() {
                       📦 Orders
                     </Link>
                     <Link
-                        href="/admin/shipping"
-                        className="block px-4 py-2 hover:bg-gray-100 transition text-sm"
-                        onClick={() => setAdminDropdownOpen(false)}
+                      href="/admin/shipping"
+                      className="block px-4 py-2 hover:bg-gray-100 transition text-sm"
+                      onClick={() => setAdminDropdownOpen(false)}
                     >
-                        🚚 Shipping
+                      🚚 Shipping
                     </Link>
                     <Link
                       href="/admin/export"
@@ -122,6 +127,20 @@ export default function Navbar() {
                       onClick={() => setAdminDropdownOpen(false)}
                     >
                       📤 Export Data
+                    </Link>
+                    <Link
+                      href="/admin/about"
+                      className="block px-4 py-2 hover:bg-gray-100 transition text-sm"
+                      onClick={() => setAdminDropdownOpen(false)}
+                    >
+                      📝 About Page
+                    </Link>
+                    <Link
+                      href="/admin/landing"
+                      className="block px-4 py-2 hover:bg-gray-100 transition text-sm"
+                      onClick={() => setAdminDropdownOpen(false)}
+                    >
+                      🏠 Landing Page
                     </Link>
                     <hr className="my-1" />
                     <button
@@ -133,26 +152,30 @@ export default function Navbar() {
                   </div>
                 )}
               </li>
-            ) : (
-              <li>
-                <Link
-                  href="/admin/login"
-                  className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-full transition text-sm"
-                >
-                  🔐 Admin
-                </Link>
-              </li>
             )}
           </ul>
 
-          {/* Mobile Hamburger */}
-          <button
-            className="md:hidden text-2xl hover:text-furmily-cream transition"
-            onClick={() => setIsOpen(!isOpen)}
-            aria-label="Toggle menu"
-          >
-            {isOpen ? <FaTimes /> : <FaBars />}
-          </button>
+          {/* Mobile Right Side: Cart + Hamburger */}
+          <div className="flex items-center gap-3 md:gap-0">
+            {/* Cart - always visible on mobile & desktop */}
+            <Link href="/cart" className="relative hover:text-furmily-cream transition md:hidden">
+              <FaShoppingCart size={22} />
+              {itemCount > 0 && (
+                <span className="absolute -top-2 -right-3 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {itemCount > 9 ? '9+' : itemCount}
+                </span>
+              )}
+            </Link>
+
+            {/* Mobile Hamburger */}
+            <button
+              className="md:hidden text-2xl hover:text-furmily-cream transition"
+              onClick={() => setIsOpen(!isOpen)}
+              aria-label="Toggle menu"
+            >
+              {isOpen ? <FaTimes /> : <FaBars />}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -166,11 +189,9 @@ export default function Navbar() {
             <Link href="/about" className="block hover:text-furmily-cream transition" onClick={() => setIsOpen(false)}>About</Link>
             <Link href="/wholesale" className="block hover:text-furmily-cream transition" onClick={() => setIsOpen(false)}>Wholesale</Link>
             <Link href="/contact" className="block hover:text-furmily-cream transition" onClick={() => setIsOpen(false)}>Contact</Link>
-            <Link href="/cart" className="block hover:text-furmily-cream transition" onClick={() => setIsOpen(false)}>
-              🛒 Keranjang {itemCount > 0 && `(${itemCount})`}
-            </Link>
 
-            {isAdmin ? (
+            {/* Admin dropdown - mobile (hanya jika login) */}
+            {isAdmin && (
               <div className="pt-2 border-t border-white/10">
                 <button
                   onClick={() => setAdminDropdownOpen(!adminDropdownOpen)}
@@ -189,10 +210,6 @@ export default function Navbar() {
                     <button onClick={() => { handleLogout(); setIsOpen(false); setAdminDropdownOpen(false); }} className="block w-full text-left px-3 py-1.5 rounded hover:bg-white/20 transition text-red-300">🚪 Logout</button>
                   </div>
                 )}
-              </div>
-            ) : (
-              <div className="pt-2 border-t border-white/10">
-                <Link href="/admin/login" className="block bg-white/20 hover:bg-white/30 px-4 py-2 rounded-full text-center" onClick={() => setIsOpen(false)}>🔐 Admin</Link>
               </div>
             )}
           </div>

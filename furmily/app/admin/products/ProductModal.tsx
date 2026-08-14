@@ -12,9 +12,10 @@ interface ProductModalProps {
   onClose: () => void;
   onSuccess: () => void;
   product?: Product | null;
+  categoryOptions: string[]; // Tambahan
 }
 
-export default function ProductModal({ isOpen, onClose, onSuccess, product }: ProductModalProps) {
+export default function ProductModal({ isOpen, onClose, onSuccess, product, categoryOptions }: ProductModalProps) {
   const [form, setForm] = useState<Partial<ProductFormData>>({
     name: '',
     category: '',
@@ -121,20 +122,23 @@ export default function ProductModal({ isOpen, onClose, onSuccess, product }: Pr
             />
           </div>
 
-          {/* Category */}
+          {/* Category - combobox */}
           <div>
             <label className="block text-sm font-semibold">Kategori *</label>
-            <select
+            <input
+              type="text"
+              list="category-list-modal"
               required
               value={form.category || ''}
               onChange={(e) => setForm({ ...form, category: e.target.value })}
               className="w-full border rounded-lg px-3 py-2"
-            >
-              <option value="">Pilih kategori</option>
-              <option value="Freeze Dried">Freeze Dried</option>
-              <option value="Food Topper">Food Topper</option>
-              <option value="Supplements">Supplements</option>
-            </select>
+              placeholder="Ketik kategori atau pilih dari daftar"
+            />
+            <datalist id="category-list-modal">
+              {categoryOptions.map((cat) => (
+                <option key={cat} value={cat} />
+              ))}
+            </datalist>
           </div>
 
           {/* Description */}
@@ -176,12 +180,12 @@ export default function ProductModal({ isOpen, onClose, onSuccess, product }: Pr
             <div>
               <label className="block text-sm font-semibold">Diskon (%)</label>
               <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={form.discount_percent || 0}
-                  onChange={(e) => setForm({ ...form, discount_percent: parseInt(e.target.value) || 0 })}
-                  className="w-full border rounded-lg px-3 py-2"
+                type="number"
+                min="0"
+                max="100"
+                value={form.discount_percent || 0}
+                onChange={(e) => setForm({ ...form, discount_percent: parseInt(e.target.value) || 0 })}
+                className="w-full border rounded-lg px-3 py-2"
               />
             </div>
             <div>
