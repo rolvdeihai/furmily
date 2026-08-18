@@ -1,5 +1,4 @@
 // app/actions/createDokuPayment.ts
-// app/actions/createDokuPayment.ts
 'use server';
 
 import crypto from 'crypto';
@@ -9,6 +8,13 @@ const CLIENT_ID = process.env.DOKU_CLIENT_ID!;
 const SECRET_KEY = process.env.DOKU_SECRET_KEY!;
 const API_URL = process.env.DOKU_API_URL || 'https://api.doku.com';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://furmily.vercel.app';
+
+// Type for line items
+type LineItem = {
+  name: string;
+  quantity: number;
+  price: number;
+};
 
 function generateDigest(body: string): string {
   return crypto.createHash('sha256').update(body).digest('base64');
@@ -60,13 +66,13 @@ export async function createDokuPaymentOrder(orderId: string) {
     throw new Error('Order not found');
   }
 
-  const { order_number, total_amount, customer, items } = order;
+  const { order_number, total_amount, shipping_cost, customer, items } = order;
 
   if (!items || items.length === 0) {
     throw new Error('Order has no items');
   }
 
-  // ✅ Handle zero total (e.g., 100% discount)
+  // Handle zero total (free order)
   if (total_amount <= 0) {
     console.log(`🆓 Order ${order_number} is free. Confirming immediately.`);
     const { error: updateError } = await supabaseAdmin
@@ -82,18 +88,49 @@ export async function createDokuPaymentOrder(orderId: string) {
       throw new Error('Failed to confirm free order');
     }
 
-    // Redirect directly to invoice
     return {
       paymentUrl: `${APP_URL}/invoice/${orderId}`,
       orderNumber: order_number,
     };
   }
 
-  // 2. Build DOKU payload
+  // 2. Build line items: product items + shipping (if any)
+  const lineItems: LineItem[] = items.map((item: any) => ({
+    name: item.product_name,
+    quantity: item.quantity,
+    price: Math.round(Number(item.price)),
+  }));
+
+  // Add shipping as a separate line item if shipping_cost exists and > 0
+  if (shipping_cost && Number(shipping_cost) > 0) {
+    lineItems.push({
+      name: 'Ongkos Kirim',
+      quantity: 1,
+      price: Math.round(Number(shipping_cost)),
+    });
+  }
+
+  // Calculate total from line items
+  const computedTotal = lineItems.reduce((sum: number, item: LineItem) => sum + item.price * item.quantity, 0);
+  const orderTotal = Math.round(Number(total_amount));
+
+  // Adjust last item if there's a small discrepancy (e.g., rounding)
+  let finalAmount = orderTotal;
+  let diff = finalAmount - computedTotal;
+  if (Math.abs(diff) > 0 && lineItems.length > 0) {
+    const lastItem = lineItems[lineItems.length - 1];
+    lastItem.price = Math.round(lastItem.price + diff / lastItem.quantity);
+    // Recalculate
+    const newTotal = lineItems.reduce((sum: number, item: LineItem) => sum + item.price * item.quantity, 0);
+    finalAmount = newTotal;
+    console.log(`⚠️ Adjusted total to match order total: ${finalAmount}`);
+  }
+
+  // 3. Build DOKU payload
   const payload = {
     order: {
       invoice_number: order_number,
-      amount: Math.round(Number(total_amount)),
+      amount: finalAmount,
       currency: 'IDR',
       callback_url: `${APP_URL}/payment/status?orderId=${orderId}`,
       auto_redirect: true,
@@ -102,11 +139,7 @@ export async function createDokuPaymentOrder(orderId: string) {
         email: customer?.email || 'customer@example.com',
         phone: customer?.phone || '',
       },
-      line_items: items.map((item: any) => ({
-        name: item.product_name,
-        quantity: item.quantity,
-        price: Math.round(Number(item.price)), // price from order_items (already discounted)
-      })),
+      line_items: lineItems,
     },
     payment: {
       payment_due_date: 60,
@@ -115,7 +148,7 @@ export async function createDokuPaymentOrder(orderId: string) {
 
   const bodyString = JSON.stringify(payload);
 
-  // 3. Generate request headers
+  // 4. Generate request headers
   const requestId = crypto.randomUUID();
   const timestamp = formatTimestamp(new Date());
   const requestTarget = '/checkout/v1/payment';
@@ -138,7 +171,7 @@ export async function createDokuPaymentOrder(orderId: string) {
   console.log('Signature:', signature);
   console.log('Payload:', JSON.stringify(payload, null, 2));
 
-  // 4. Send request
+  // 5. Send request
   try {
     const response = await fetch(url, {
       method: 'POST',

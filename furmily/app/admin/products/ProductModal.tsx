@@ -1,5 +1,3 @@
-// app/admin/products/ProductModal.tsx
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -12,10 +10,16 @@ interface ProductModalProps {
   onClose: () => void;
   onSuccess: () => void;
   product?: Product | null;
-  categoryOptions: string[]; // Tambahan
+  categoryOptions?: string[];  // 👈 added
 }
 
-export default function ProductModal({ isOpen, onClose, onSuccess, product, categoryOptions }: ProductModalProps) {
+export default function ProductModal({ 
+  isOpen, 
+  onClose, 
+  onSuccess, 
+  product, 
+  categoryOptions = []   // 👈 default empty
+}: ProductModalProps) {
   const [form, setForm] = useState<Partial<ProductFormData>>({
     name: '',
     category: '',
@@ -58,12 +62,10 @@ export default function ProductModal({ isOpen, onClose, onSuccess, product, cate
       formData.append('file', file);
       const { url } = await uploadProductImage(formData);
       setForm(prev => ({ ...prev, image_url: url }));
-      setPreviewUrl(url); // Use the actual URL for final preview
-      // Clear file input so the same file can be re‑selected if needed
+      setPreviewUrl(url);
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err: any) {
       alert('Gagal upload gambar: ' + err.message);
-      // Revert preview to previous image
       setPreviewUrl(form.image_url || null);
     } finally {
       setUploading(false);
@@ -80,7 +82,6 @@ export default function ProductModal({ isOpen, onClose, onSuccess, product, cate
     e.preventDefault();
     setLoading(true);
     try {
-      // Validate required fields
       if (!form.name || !form.category || form.price === undefined || form.stock === undefined) {
         alert('Nama, kategori, harga, dan stok wajib diisi.');
         setLoading(false);
@@ -122,19 +123,19 @@ export default function ProductModal({ isOpen, onClose, onSuccess, product, cate
             />
           </div>
 
-          {/* Category - combobox */}
+          {/* Category – now a combobox */}
           <div>
             <label className="block text-sm font-semibold">Kategori *</label>
             <input
               type="text"
-              list="category-list-modal"
+              list="category-list"
               required
               value={form.category || ''}
               onChange={(e) => setForm({ ...form, category: e.target.value })}
               className="w-full border rounded-lg px-3 py-2"
               placeholder="Ketik kategori atau pilih dari daftar"
             />
-            <datalist id="category-list-modal">
+            <datalist id="category-list">
               {categoryOptions.map((cat) => (
                 <option key={cat} value={cat} />
               ))}
@@ -180,12 +181,12 @@ export default function ProductModal({ isOpen, onClose, onSuccess, product, cate
             <div>
               <label className="block text-sm font-semibold">Diskon (%)</label>
               <input
-                type="number"
-                min="0"
-                max="100"
-                value={form.discount_percent || 0}
-                onChange={(e) => setForm({ ...form, discount_percent: parseInt(e.target.value) || 0 })}
-                className="w-full border rounded-lg px-3 py-2"
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={form.discount_percent || 0}
+                  onChange={(e) => setForm({ ...form, discount_percent: parseInt(e.target.value) || 0 })}
+                  className="w-full border rounded-lg px-3 py-2"
               />
             </div>
             <div>

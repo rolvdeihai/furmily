@@ -164,12 +164,14 @@ export default function Home() {
   }
 
   return (
-    <div className="overflow-x-hidden">
-      {/* MARQUEE */}
-      <Marquee messages={promoMessages} />
+    <div>
+      {/* MARQUEE – FULL WIDTH */}
+      <div className="w-screen relative left-1/2 -translate-x-1/2 px-0 overflow-hidden">
+        <Marquee messages={promoMessages} />
+      </div>
 
       {/* HERO – BANNER SLIDER FULL WIDTH */}
-      <section className="relative bg-gradient-to-r from-furmily-primary to-[#0A6B5C] py-4 sm:py-8">
+      <section className="relative bg-gradient-to-r from-furmily-primary to-[#0A6B5C] py-4 sm:py-8 w-screen relative left-1/2 -translate-x-1/2 px-0 overflow-hidden">
         <BannerSlider />
       </section>
 
@@ -212,8 +214,8 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ==================== PRODUCT HIGHLIGHTS (Horizontal, Full Width, Responsive) ==================== */}
-      <section className="bg-gradient-to-r from-emerald-700 to-emerald-800 py-12 sm:py-16">
+      {/* ==================== PRODUCT HIGHLIGHTS (FULL WIDTH BACKGROUND) ==================== */}
+      <section className="bg-gradient-to-r from-emerald-700 to-emerald-800 py-12 sm:py-16 w-screen relative left-1/2 -translate-x-1/2 px-0 overflow-hidden">
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-8 sm:mb-10">
             <span className="text-white/70 tracking-widest text-xs sm:text-sm font-semibold uppercase">Pilihan Terbaik</span>
